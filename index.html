@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>低温調理計算ツール</title>
+<meta name="description" content="食材の種類と厚みから低温調理の加熱時間を算出するツール">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="低温調理計算ツール">
+<meta name="theme-color" content="#1a1916">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f6f4;
+    --white: #ffffff;
+    --border: #e4e2de;
+    --border-light: #f0ede9;
+    --text: #1a1916;
+    --text-sub: #6b6760;
+    --text-muted: #a09c96;
+    --accent: #2a2a2a;
+    --tag-bg: #f0ede9;
+    --safe-min: 55;
+    --row-hover: #faf9f7;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html { background: var(--bg); }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100svh;
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--white);
+    padding: calc(env(safe-area-inset-top) + 20px) 20px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-inner {
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .header-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 300;
+    margin-top: 2px;
+  }
+  .header-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--tag-bg);
+    padding: 4px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Content wrapper ── */
+  .content {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 16px;
+  }
+
+  /* ── Section label ── */
+  .label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* ── Step block ── */
+  .step {
+    margin-bottom: 24px;
+  }
+
+  /* ── Meat selector ── */
+  .meat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .meat-btn {
+    background: var(--white);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 6px 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    -webkit-appearance: none;
+  }
+  .meat-btn:active { transform: scale(0.97); }
+  .meat-btn.active {
+    border-color: var(--text);
+    background: var(--text);
+  }
+  .meat-btn .icon {
+    font-size: 22px;
+    display: block;
+    margin-bottom: 6px;
+  }
+  .meat-btn .name {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text);
+    display: block;
+    line-height: 1.3;
+  }
+  .meat-btn .range {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    display: block;
+  }
+  .meat-btn.active .name,
+  .meat-btn.active .range { color: #fff; }
+
+  /* ── Thickness ── */
+  .thickness-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 18px 16px;
+    box-shadow: var(--shadow);
+  }
+  .thickness-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .thickness-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 40px;
+    font-weight: 300;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .thickness-unit {
+    font-size: 16px;
+    color: var(--text-sub);
+    margin-left: 3px;
+  }
+  .thickness-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
+    font-weight: 300;
+  }
+
+  /* Slider */
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--text);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  input[type=range]:active::-webkit-slider-thumb {
+    transform: scale(1.1);
+  }
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 2px 0;
+  }
+  .slider-labels span {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  /* Quick btns */
+  .quick-btns {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .qbtn {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    background: var(--tag-bg);
+    border: 1px solid transparent;
+    border-radius: 20px;
+    padding: 5px 11px;
+    color: var(--text-sub);
+    cursor: pointer;
+    transition: all 0.12s;
+    -webkit-appearance: none;
+  }
+  .qbtn.active {
+    background: var(--text);
+    color: #fff;
+    border-color: var(--text);
+  }
+
+  /* ── Results ── */
+  .results {
+    margin-top: 4px;
+    animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Summary bar */
+  .result-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2px;
+    margin-bottom: 12px;
+  }
+  .result-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .result-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Table card */
+  .table-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+
+  /* Table header */
+  .table-head {
+    display: grid;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--tag-bg);
+  }
+  .th-temp {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .th-time {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-align: right;
+  }
+
+  /* Table row */
+  .t-row {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.1s;
+  }
+  .t-row:last-child { border-bottom: none; }
+  .t-row:active { background: var(--row-hover); }
+
+  .t-temp {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text-sub);
+    font-weight: 400;
+  }
+
+  .t-info { flex: 1; }
+  .t-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .t-time-min {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .t-tag {
+    font-size: 10px;
+    font-weight: 400;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--tag-bg);
+    color: var(--text-sub);
+    white-space: nowrap;
+  }
+
+  /* Color coding for temperature ranges */
+  .t-row[data-level="1"] .t-temp { color: #5b8fd4; }
+  .t-row[data-level="2"] .t-temp { color: #d46a5b; }
+  .t-row[data-level="3"] .t-temp { color: #d4955b; }
+  .t-row[data-level="4"] .t-temp { color: #6aaa7a; }
+  .t-row[data-level="5"] .t-temp { color: #9a8acc; }
+
+  .t-row[data-level="1"] .t-tag { background: #edf3fb; color: #5b8fd4; }
+  .t-row[data-level="2"] .t-tag { background: #fbeeed; color: #d46a5b; }
+  .t-row[data-level="3"] .t-tag { background: #fdf3eb; color: #d4955b; }
+  .t-row[data-level="4"] .t-tag { background: #eef6f0; color: #6aaa7a; }
+  .t-row[data-level="5"] .t-tag { background: #f2f0f9; color: #9a8acc; }
+
+  .t-row.core .t-time { font-size: 13px; color: var(--text-muted); }
+
+  /* Divider label in table */
+  .t-divider {
+    padding: 7px 16px 5px;
+    background: var(--tag-bg);
+    border-bottom: 1px solid var(--border-light);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ── Warning ── */
+  .warn-card {
+    margin-top: 12px;
+    background: #fff9f0;
+    border: 1px solid #f0dfc0;
+    border-radius: 12px;
+    padding: 13px 15px;
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+  }
+  .warn-icon { font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+  .warn-text { font-size: 11px; color: #7a5a2a; line-height: 1.7; font-weight: 300; }
+  .warn-text strong { font-weight: 700; }
+
+  /* ── Storage info ── */
+  .storage-card {
+    margin-top: 12px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .storage-title {
+    padding: 11px 16px;
+    background: var(--tag-bg);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+  .storage-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 12px;
+  }
+  .storage-row:last-child { border-bottom: none; }
+  .storage-label { color: var(--text-sub); font-weight: 300; }
+  .storage-val { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text); }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.8;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+  .empty .icon { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 32px;
+    padding: 16px 2px 8px;
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 300;
+    line-height: 1.8;
+  }
+  .footer a { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div>
+      <div class="header-title">低温調理計算ツール</div>
+      <div class="header-sub">食材の種類と厚みから加熱時間を算出</div>
+    </div>
+    <div class="header-badge">BONIQ 2026.02</div>
+  </div>
+</header>
+
+<div class="content">
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <p class="label">Step 1 &nbsp;食材の種類</p>
+    <div class="meat-row" id="meatGrid">
+      <button class="meat-btn" data-meat="beef" onclick="selectMeat(this)">
+        <span class="icon">🥩</span>
+        <span class="name">牛・ラム</span>
+        <span class="range">55–70°C</span>
+      </button>
+      <button class="meat-btn" data-meat="chicken" onclick="selectMeat(this)">
+        <span class="icon">🍗</span>
+        <span class="name">鶏肉</span>
+        <span class="range">57–70°C</span>
+      </button>
+      <button class="meat-btn" data-meat="pork" onclick="selectMeat(this)">
+        <span class="icon">🐷</span>
+        <span class="name">豚・ジビエ</span>
+        <span class="range">61–70°C</span>
+      </button>
+      <button class="meat-btn" data-meat="fish" onclick="selectMeat(this)">
+        <span class="icon">🐟</span>
+        <span class="name">魚</span>
+        <span class="range">55–75°C</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <p class="label">Step 2 &nbsp;食材の厚み（最も厚い部分）</p>
+    <div class="thickness-card">
+      <div class="thickness-top">
+        <div>
+          <span class="thickness-num" id="thickNum">2.0</span><span class="thickness-unit">cm</span>
+        </div>
+        <div class="thickness-hint">食材の最も<br>厚い部分を測定</div>
+      </div>
+      <input type="range" id="slider" min="1" max="11" step="1" value="4"
+        oninput="onSlider(this.value)">
+      <div class="slider-labels">
+        <span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>2.5</span><span>3.0</span><span>3.5</span><span>4.0</span><span>4.5</span><span>5.0</span><span>5.5</span>
+      </div>
+      <div class="quick-btns" id="quickBtns">
+        <button class="qbtn" onclick="setIdx(0)">0.5cm</button>
+        <button class="qbtn" onclick="setIdx(1)">1cm</button>
+        <button class="qbtn" onclick="setIdx(2)">1.5cm</button>
+        <button class="qbtn active" onclick="setIdx(3)">2cm</button>
+        <button class="qbtn" onclick="setIdx(4)">2.5cm</button>
+        <button class="qbtn" onclick="setIdx(5)">3cm</button>
+        <button class="qbtn" onclick="setIdx(6)">3.5cm</button>
+        <button class="qbtn" onclick="setIdx(7)">4cm</button>
+        <button class="qbtn" onclick="setIdx(8)">4.5cm</button>
+        <button class="qbtn" onclick="setIdx(9)">5cm</button>
+        <button class="qbtn" onclick="setIdx(10)">5.5cm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="resultsArea">
+    <div class="empty">
+      <div class="icon">🌡️</div>
+      食材の種類を選択すると<br>温度ごとの加熱時間が表示されます
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────
+// データ定義（BONIQ 2026年2月17日版 PDFより正確転記）
+// インデックス: 0=0.5cm, 1=1cm, 2=1.5cm, 3=2cm, 4=2.5cm, 5=3cm, 6=3.5cm, 7=4cm, 8=4.5cm, 9=5cm, 10=5.5cm
+// ─────────────────────────────────────────────────────
+
+// 仕上がりラベル
+function getLevel(temp, meat) {
+  if (meat === 'beef') {
+    if (temp <= 56) return [1, 'レア'];
+    if (temp <= 60) return [2, 'ミディアムレア'];
+    if (temp <= 65) return [3, 'ミディアム'];
+    if (temp <= 67) return [3, 'ミディアム'];
+    return [4, 'ウェルダン'];
+  }
+  if (meat === 'chicken') {
+    if (temp <= 60) return [1, 'しっとり'];
+    if (temp <= 65) return [2, 'ふっくら'];
+    if (temp <= 67) return [3, 'しっかり'];
+    return [4, 'よく火入れ'];
+  }
+  if (meat === 'pork') {
+    if (temp <= 63) return [2, 'ジューシー'];
+    if (temp <= 67) return [3, '標準'];
+    return [4, 'しっかり'];
+  }
+  if (meat === 'fish') {
+    if (temp <= 60) return [1, '半生'];
+    if (temp <= 65) return [2, 'しっとり'];
+    if (temp <= 67) return [3, 'しっかり'];
+    if (temp === 75) return [5, '高温'];
+    return [4, 'よく火入れ'];
+  }
+}
+
+const THICKNESSES = [0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5];
+
+// ── 牛肉・ラム肉（P.2）
+const BEEF = {
+  55: ["3:45","4:00","4:15","4:30","4:55","5:10","5:40","6:10","6:40","7:10","7:40"],
+  56: ["2:35","2:50","3:05","3:20","3:45","4:00","4:30","5:00","5:30","6:00","6:30"],
+  57: ["1:50","2:05","2:20","2:35","3:00","3:15","3:45","4:15","4:45","5:15","5:45"],
+  58: ["1:15","1:25","1:45","2:00","2:25","2:40","3:10","3:40","4:10","4:40","5:10"],
+  59: ["0:50","1:05","1:20","1:35","2:00","2:15","2:45","3:15","3:45","4:15","4:45"],
+  60: ["0:35","0:50","1:05","1:20","1:45","2:00","2:30","3:00","3:30","4:00","4:30"],
+  61: ["0:30","0:45","1:00","1:15","1:40","1:55","2:25","2:55","3:25","3:55","4:25"],
+  62: ["0:20","0:35","0:50","1:05","1:30","1:45","2:15","2:45","3:15","3:45","4:15"],
+  63: ["0:20","0:30","0:50","1:05","1:30","1:45","2:15","2:45","3:15","3:45","4:15"],
+  64: ["0:15","0:30","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  65: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  66: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  67: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  68: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  69: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  70: ["0:10","0:20","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+};
+
+// ── 鶏肉（P.3）
+const CHICKEN = {
+  57: ["1:55","2:10","2:25","2:40","3:05","3:20","3:50","4:20","4:50","5:20","5:50"],
+  58: ["1:20","1:35","1:50","2:05","2:30","2:45","3:15","3:45","4:15","4:45","5:15"],
+  59: ["0:55","1:10","1:25","1:40","2:05","2:20","2:50","3:20","3:50","4:20","4:50"],
+  60: ["0:40","0:50","1:10","1:25","1:50","2:05","2:35","3:05","3:35","4:05","4:35"],
+  61: ["0:25","0:40","0:55","1:10","1:35","1:50","2:20","2:50","3:20","3:50","4:20"],
+  62: ["0:20","0:35","0:50","1:05","1:30","1:45","2:15","2:45","3:15","3:45","4:15"],
+  63: ["0:15","0:30","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  64: ["0:15","0:25","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  65: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  66: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  67: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  68: ["0:10","0:20","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  69: ["0:10","0:20","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  70: ["0:10","0:20","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+};
+
+// ── 豚肉・ジビエ（P.3）
+const PORK = {
+  61: ["1:25","1:35","1:55","2:10","2:35","2:50","3:20","3:50","4:20","4:50","5:20"],
+  62: ["0:55","1:10","1:25","1:40","2:05","2:20","2:50","3:20","3:50","4:20","4:50"],
+  63: ["0:35","0:50","1:05","1:20","1:45","2:00","2:30","3:00","3:30","4:00","4:30"],
+  64: ["0:30","0:45","1:00","1:15","1:40","1:55","2:25","2:55","3:25","3:55","4:25"],
+  65: ["0:25","0:40","0:55","1:10","1:35","1:50","2:20","2:50","3:20","3:50","4:20"],
+  66: ["0:20","0:35","0:50","1:05","1:30","1:45","2:15","2:45","3:15","3:45","4:15"],
+  67: ["0:15","0:30","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  68: ["0:15","0:30","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  69: ["0:15","0:25","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  70: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+};
+
+// ── 魚（P.4）— 55〜70℃は0.5〜5.5cm、75℃は0.5〜3cmのみ
+const FISH = {
+  55: ["3:35","3:50","4:05","4:20","4:45","5:00","5:30","6:00","6:30","7:00","7:30"],
+  56: ["2:25","2:40","2:55","3:10","3:35","3:50","4:20","4:50","5:20","5:50","6:20"],
+  57: ["1:40","1:55","2:10","2:25","2:50","3:05","3:35","4:05","4:35","5:05","5:35"],
+  58: ["1:10","1:20","1:40","1:55","2:20","2:35","3:05","3:35","4:05","4:35","5:05"],
+  59: ["0:50","1:00","1:20","1:35","2:00","2:15","2:45","3:15","3:45","4:15","4:45"],
+  60: ["0:35","0:50","1:05","1:20","1:45","2:00","2:30","3:00","3:30","4:00","4:30"],
+  61: ["0:25","0:40","0:55","1:10","1:35","1:50","2:20","2:50","3:20","3:50","4:20"],
+  62: ["0:20","0:35","0:50","1:05","1:30","1:45","2:15","2:45","3:15","3:45","4:15"],
+  63: ["0:15","0:30","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  64: ["0:15","0:30","0:45","1:00","1:25","1:40","2:10","2:40","3:10","3:40","4:10"],
+  65: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  66: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  67: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  68: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  69: ["0:10","0:25","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  70: ["0:10","0:20","0:40","0:55","1:20","1:35","2:05","2:35","3:05","3:35","4:05"],
+  75: ["0:10","0:25","0:40","0:55","1:20","1:35",null,null,null,null,null], // 3.5cm以上はデータなし
+};
+
+const DATA_MAP = { beef: BEEF, chicken: CHICKEN, pork: PORK, fish: FISH };
+
+// ── State
+let selectedMeat = null;
+let thickIdx = 3; // default 2cm (index 3)
+
+// ── Helpers
+function timeToMin(t) {
+  if (!t) return null;
+  const [h,m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+function formatMin(total) {
+  if (total === 0) return '5分未満';
+  if (total < 60) return total + '分';
+  const h = Math.floor(total/60), m = total%60;
+  return m > 0 ? `${h}時間${m}分` : `${h}時間`;
+}
+
+// ── UI Handlers
+function selectMeat(btn) {
+  document.querySelectorAll('.meat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedMeat = btn.dataset.meat;
+  render();
+}
+
+function onSlider(val) {
+  thickIdx = parseInt(val) - 1;
+  updateDisplay();
+  if (selectedMeat) render();
+}
+
+function setIdx(idx) {
+  thickIdx = idx;
+  document.getElementById('slider').value = idx + 1;
+  updateDisplay();
+  if (selectedMeat) render();
+}
+
+function updateDisplay() {
+  document.getElementById('thickNum').textContent = THICKNESSES[thickIdx].toFixed(1);
+  // quick btns
+  document.querySelectorAll('.qbtn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === thickIdx);
+  });
+}
+
+// ── Render results
+function render() {
+  if (!selectedMeat) return;
+  const data = DATA_MAP[selectedMeat];
+  const temps = Object.keys(data).map(Number).sort((a,b)=>a-b);
+  const cmLabel = THICKNESSES[thickIdx].toFixed(1) + 'cm';
+
+  let rowsHTML = '';
+  let prevLevel = null;
+  let count = 0;
+
+  temps.forEach(temp => {
+    const arr = data[temp];
+    const val = arr[thickIdx];
+
+    // 魚75℃で3.5cm以上はnull
+    const isCore = (thickIdx === 10);
+    const isNull = (val === null);
+
+    if (isNull) return; // skip
+
+    const [level, label] = getLevel(temp, selectedMeat);
+    const mins = timeToMin(val);
+    const minLabel = mins !== null ? formatMin(mins) : '';
+
+    // divider on level change
+    if (level !== prevLevel) {
+      const levelNames = ['','レア系','ミディアム','標準火入れ','しっかり','高温帯'];
+      if (rowsHTML !== '') {
+        // no visible divider needed - color speaks
+      }
+      prevLevel = level;
+    }
+
+    const coreClass = isCore ? ' core' : '';
+    const timeDisplay = isCore ? '芯温計を使用' : val;
+    const minDisplay = isCore ? '5.5cm超は芯温計が必要' : (minLabel ? `合計 ${minLabel}` : '');
+
+    rowsHTML += `<div class="t-row${coreClass}" data-level="${level}">
+      <span class="t-temp">${temp}°C</span>
+      <div class="t-info">
+        <div class="t-time">${timeDisplay}</div>
+        <div class="t-time-min">${minDisplay}</div>
+      </div>
+      <span class="t-tag">${label}</span>
+    </div>`;
+    count++;
+  });
+
+  // warnings
+  let warnHTML = '';
+  if (selectedMeat === 'pork') {
+    warnHTML = `<div class="warn-card">
+      <span class="warn-icon">⚠️</span>
+      <p class="warn-text">豚肉・ジビエは<strong>61°C以上</strong>での調理を推奨。<br>60°C以下はUSDAによるE型肝炎ウイルス感染リスクの危険温度帯です。</p>
+    </div>`;
+  }
+  if (selectedMeat === 'fish') {
+    warnHTML = `<div class="warn-card">
+      <span class="warn-icon">⚠️</span>
+      <p class="warn-text"><strong>アニサキス予防</strong>には低温調理では対応不可。<br>−20°C以上で24時間以上冷凍（家庭用冷凍庫は48時間以上）が必要。<br>75°C行は0.5〜3cmのみ対応（ヒラメ等の75°C加熱推奨食材向け）。</p>
+    </div>`;
+  }
+
+  // meat name
+  const meatNames = { beef:'牛肉・ラム肉', chicken:'鶏肉', pork:'豚肉・ジビエ', fish:'魚（生食用でない）' };
+
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="results">
+      <div class="result-summary">
+        <span class="result-title">${meatNames[selectedMeat]} — ${cmLabel}</span>
+        <span class="result-count">${count} 温度帯</span>
+      </div>
+      <div class="table-card">
+        <div class="table-head" style="grid-template-columns: 60px 1fr auto;">
+          <span class="th-temp">温度</span>
+          <span class="th-temp">加熱時間</span>
+          <span class="th-time">仕上がり</span>
+        </div>
+        ${rowsHTML}
+      </div>
+      ${warnHTML}
+      <div class="storage-card">
+        <div class="storage-title">保存・再加熱の目安</div>
+        <div class="storage-row"><span class="storage-label">冷蔵保存</span><span class="storage-val">3日間</span></div>
+        <div class="storage-row"><span class="storage-label">冷凍保存</span><span class="storage-val">1ヶ月</span></div>
+        <div class="storage-row"><span class="storage-label">冷蔵→再加熱</span><span class="storage-val">設定温度−5°C / 15〜20分</span></div>
+        <div class="storage-row"><span class="storage-label">冷凍→再加熱</span><span class="storage-val">設定温度−5°C / 25〜30分</span></div>
+        <div class="storage-row"><span class="storage-label">再加熱後</span><span class="storage-val">2時間以内に喫食</span></div>
+      </div>
+      <div class="footer">
+        出典: BONIQ 低温調理 加熱時間基準表（2026年2月17日改訂版）<br>
+        <a href="https://boniq.jp/pdf/ttguide.pdf">https://boniq.jp/pdf/ttguide.pdf</a><br>
+        ※最終的な安全性の確認は公式ガイドをご参照ください。
+      </div>
+    </div>`;
+}
+
+// init
+updateDisplay();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
